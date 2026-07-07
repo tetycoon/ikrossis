@@ -35,31 +35,78 @@
       if (img.hasAttribute('srcSet')) img.removeAttribute('srcSet');
     }
 
-    // 3. Stats Fixer (keeps stats from reverting to 0 on hydration)
+    // 3. Stats Count-Up Animator & Protection
+    function getStatConfig(labelText) {
+      if (labelText.includes('years')) return { target: 12, suffix: '+' };
+      if (labelText.includes('corporates')) return { target: 40, suffix: '+' };
+      if (labelText.includes('lives')) return { target: 25, suffix: 'K+' };
+      if (labelText.includes('programs')) return { target: 500, suffix: '+' };
+      return null;
+    }
+
     function fixStats() {
-      const spans = document.querySelectorAll('span');
-      for (let i = 0; i < spans.length; i++) {
-        const span = spans[i];
-        const text = span.textContent.trim();
-        if (text === '0+' || text === '0K+' || text === '0' || text.startsWith('0')) {
-          const parent = span.closest('.text-center');
-          if (parent) {
-            const labelEl = parent.querySelector('.font-semibold');
-            if (labelEl) {
-              const label = labelEl.textContent.trim().toLowerCase();
-              if (label.includes('years')) {
-                span.innerHTML = '12+';
-              } else if (label.includes('corporates')) {
-                span.innerHTML = '40+';
-              } else if (label.includes('lives')) {
-                span.innerHTML = '25K+';
-              } else if (label.includes('programs')) {
-                span.innerHTML = '500+';
-              }
-            }
+      const containers = document.querySelectorAll('.text-center');
+      containers.forEach(container => {
+        const labelEl = container.querySelector('.font-semibold');
+        const valueSpan = container.querySelector('span');
+        if (!labelEl || !valueSpan) return;
+
+        const labelText = labelEl.textContent.trim().toLowerCase();
+        const config = getStatConfig(labelText);
+        if (!config) return;
+
+        const finalValue = `${config.target}${config.suffix}`;
+        container.dataset.finalValue = finalValue;
+
+        // Protect value from React hydration overrides
+        if (container.dataset.finished === 'true') {
+          if (valueSpan.textContent.trim() !== finalValue) {
+            valueSpan.innerHTML = finalValue;
+          }
+        } else if (!container.dataset.animating) {
+          const zeroValue = `0${config.suffix}`;
+          if (valueSpan.textContent.trim() !== zeroValue) {
+            valueSpan.innerHTML = zeroValue;
           }
         }
+      });
+    }
+
+    function animateStatContainer(container) {
+      const labelEl = container.querySelector('.font-semibold');
+      const valueSpan = container.querySelector('span');
+      if (!labelEl || !valueSpan || container.dataset.animating) return;
+
+      const labelText = labelEl.textContent.trim().toLowerCase();
+      const config = getStatConfig(labelText);
+      if (!config) return;
+
+      container.dataset.animating = 'true';
+      
+      const duration = 2000; // 2 seconds
+      const startTime = performance.now();
+      const target = config.target;
+      const suffix = config.suffix;
+
+      function updateCount(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Easing out cubic
+        const easeProgress = 1 - Math.pow(1 - progress, 3);
+        const currentValue = Math.floor(easeProgress * target);
+
+        valueSpan.innerHTML = `${currentValue}${suffix}`;
+
+        if (progress < 1) {
+          requestAnimationFrame(updateCount);
+        } else {
+          valueSpan.innerHTML = `${target}${suffix}`;
+          container.dataset.finished = 'true';
+        }
       }
+
+      requestAnimationFrame(updateCount);
     }
 
     const observer = new MutationObserver((mutations) => {
@@ -91,11 +138,31 @@
       attributeFilter: ['src', 'srcset', 'srcSet']
     });
 
-    // 4. Dynamic Text Rotator (Renew -> Reshape -> Rebuild)
+    // 4. Initialization & Rotator
     document.addEventListener('DOMContentLoaded', () => {
+      // Start stats tracking
       fixStats();
-      setInterval(fixStats, 300);
+      setInterval(fixStats, 200);
 
+      // Intersection Observer for Stats Count-up
+      const statsObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            animateStatContainer(entry.target);
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.1 });
+
+      const containers = document.querySelectorAll('.text-center');
+      containers.forEach(container => {
+        const labelEl = container.querySelector('.font-semibold');
+        if (labelEl && getStatConfig(labelEl.textContent.trim().toLowerCase())) {
+          statsObserver.observe(container);
+        }
+      });
+
+      // Text Rotator (Renew -> Reshape -> Rebuild)
       const h1 = document.querySelector('.hero-line h1');
       if (!h1) return;
 
