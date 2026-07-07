@@ -138,7 +138,7 @@
       attributeFilter: ['src', 'srcset', 'srcSet']
     });
 
-    // 4. Initialization & Rotator
+    // 4. Initialization, Viewport Animations, & Rotator
     document.addEventListener('DOMContentLoaded', () => {
       // Start stats tracking
       fixStats();
@@ -160,6 +160,44 @@
         if (labelEl && getStatConfig(labelEl.textContent.trim().toLowerCase())) {
           statsObserver.observe(container);
         }
+      });
+
+      // Viewport Scroll Animator for hidden sections
+      const animatedElements = [];
+      document.querySelectorAll('.opacity-0').forEach(el => {
+        animatedElements.push(el);
+      });
+      document.querySelectorAll('[style*="opacity:0"], [style*="opacity: 0"]').forEach(el => {
+        if (el.closest('.hero-line h1')) return;
+        if (!animatedElements.includes(el)) animatedElements.push(el);
+      });
+
+      const scrollObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const el = entry.target;
+            const siblings = Array.from(el.parentNode.children).filter(child => animatedElements.includes(child));
+            const index = siblings.indexOf(el);
+            const delay = index >= 0 ? index * 0.15 : 0;
+
+            el.style.setProperty('transition', 'opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)', 'important');
+            el.style.setProperty('transition-delay', `${delay}s`, 'important');
+            
+            el.classList.remove('opacity-0');
+            el.style.setProperty('opacity', '1', 'important');
+            el.style.setProperty('transform', 'none', 'important');
+
+            observer.unobserve(el);
+          }
+        });
+      }, { threshold: 0.05 });
+
+      animatedElements.forEach(el => {
+        const inlineStyle = el.getAttribute('style') || '';
+        if (!inlineStyle.includes('transform')) {
+          el.style.transform = 'translateY(25px)';
+        }
+        scrollObserver.observe(el);
       });
 
       // Text Rotator (Renew -> Reshape -> Rebuild)
