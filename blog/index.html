@@ -2,6 +2,101 @@
 <!-- Mirrored from www.ikrossis.com/blog by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 03 Jul 2026 13:57:52 GMT -->
 <!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=utf-8" /><!-- /Added by HTTrack -->
 <head>
+<script>
+  (function() {
+    // 1. Fetch API Interceptor Mock
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options) {
+      if (url && (url === '/api/contact' || url.endsWith('/api/contact'))) {
+        console.log('Intercepted contact form submission:', url, options);
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve(new Response(JSON.stringify({ success: true }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+            }));
+          }, 800);
+        });
+      }
+      return originalFetch.apply(this, arguments);
+    };
+
+    // 2. Dynamic Image Path Optimizer & Stats Fixer (for static exports)
+    function fixImage(img) {
+      const src = img.getAttribute('src');
+      if (src && src.includes('_next/image')) {
+        const match = src.match(/[?&]url=([^&]+)/);
+        if (match && match[1]) {
+          const decoded = decodeURIComponent(match[1]);
+          img.setAttribute('src', decoded);
+        }
+      }
+      if (img.hasAttribute('srcset')) img.removeAttribute('srcset');
+      if (img.hasAttribute('srcSet')) img.removeAttribute('srcSet');
+    }
+
+    function fixStats() {
+      const spans = document.querySelectorAll('span');
+      for (let i = 0; i < spans.length; i++) {
+        const span = spans[i];
+        const text = span.textContent.trim();
+        if (text === '0+' || text === '0K+' || text === '0' || text.startsWith('0')) {
+          const parent = span.closest('.text-center');
+          if (parent) {
+            const labelEl = parent.querySelector('.font-semibold');
+            if (labelEl) {
+              const label = labelEl.textContent.trim().toLowerCase();
+              if (label.includes('years')) {
+                span.innerHTML = '12+';
+              } else if (label.includes('corporates')) {
+                span.innerHTML = '40+';
+              } else if (label.includes('lives')) {
+                span.innerHTML = '25K+';
+              } else if (label.includes('programs')) {
+                span.innerHTML = '500+';
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const observer = new MutationObserver((mutations) => {
+      fixStats();
+      for (const mutation of mutations) {
+        if (mutation.type === 'childList') {
+          for (const node of mutation.addedNodes) {
+            if (node.nodeType === 1) {
+              if (node.tagName === 'IMG') {
+                fixImage(node);
+              } else {
+                const imgs = node.getElementsByTagName('img');
+                for (let i = 0; i < imgs.length; i++) {
+                  fixImage(imgs[i]);
+                }
+              }
+            }
+          }
+        } else if (mutation.type === 'attributes' && mutation.target.tagName === 'IMG') {
+          fixImage(mutation.target);
+        }
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['src', 'srcset', 'srcSet']
+    });
+
+    // Run initial checks
+    document.addEventListener('DOMContentLoaded', () => {
+      fixStats();
+      setInterval(fixStats, 300);
+    });
+  })();
+</script>
 <base href="/" />
 <script>
   (function() {
