@@ -107,7 +107,7 @@
       });
     }
 
-    // 5. Scroll-Direction-linked Testimonial Marquee (Continuous Motion, Pause on Hover, Speed proportional to Scroll Rate)
+    // 4. Exact Mirror of Original GSAP Testimonial Marquee (Infinite Auto-scroll, direction based, velocity scaling, hover slow-down)
     function initScrollParallax() {
       const tracks = document.querySelectorAll('.flex.w-fit.gap-6.px-6');
       if (tracks.length === 0) return;
@@ -127,13 +127,14 @@
         }
         
         let currentX = 0;
-        let baseSpeed = -0.8;   // Default right-to-left speed
-        let extraSpeed = 0;     // Speed boost from scroll velocity
+        let baseSpeed = -0.5;      // Base speed matching GSAP's duration: 100
+        let targetTimeScale = 1;   // Equivalent to GSAP's timeScale
+        let currentTimeScale = 1;  // Smoothly interpolated timeScale
         let lastScrollY = window.scrollY;
         let lastScrollTime = Date.now();
-        let isHovered = false;  // ONLY stops when mouse is placed on it
+        let isHovered = false;     // Slows down to 0.1 when hovered
         
-        // Stop only on hover, play otherwise
+        // Slow down to 10% speed on hover, restore to 100% on mouseleave
         track.addEventListener('mouseenter', () => {
           isHovered = true;
         });
@@ -141,7 +142,7 @@
           isHovered = false;
         });
         
-        // Measure scroll velocity and adapt base speed direction
+        // Listen to scroll velocity updates (exactly matching GSAP ScrollTrigger's logic)
         window.addEventListener('scroll', () => {
           const currentScrollY = window.scrollY;
           const currentTime = Date.now();
@@ -149,14 +150,11 @@
           const dy = currentScrollY - lastScrollY;
           
           if (dt > 0) {
-            // Scroll down: dy > 0 -> set baseSpeed to negative, boost is negative
-            // Scroll up: dy < 0 -> set baseSpeed to positive, boost is positive
-            if (dy > 0) {
-              baseSpeed = -0.8;
-            } else if (dy < 0) {
-              baseSpeed = 0.8;
-            }
-            extraSpeed = -dy / dt * 10;
+            const velocity = dy / dt * 1000; // Pixels per second (approx)
+            const direction = dy > 0 ? 1 : -1;
+            // GSAP formula: let n = 1 + Math.abs(r)/300; timeScale: 1===i?n:-n
+            const factor = 1 + Math.abs(velocity) / 300;
+            targetTimeScale = direction === 1 ? factor : -factor;
           }
           
           lastScrollY = currentScrollY;
@@ -167,30 +165,32 @@
           const viewHeight = window.innerHeight;
           const rect = parent.getBoundingClientRect();
           
-          // Decay extra speed boost (friction)
-          extraSpeed *= 0.92;
-          if (Math.abs(extraSpeed) < 0.05) {
-            extraSpeed = 0;
-          }
+          // Smoothly decay extra scroll velocity timeScale back to default (1 or -1)
+          const targetScale = isHovered ? 0.1 : (targetTimeScale > 0 ? 1 : -1);
           
-          const speed = baseSpeed + extraSpeed;
+          // Interpolate current scale toward target (simulating GSAP duration: 0.5 overwrite)
+          currentTimeScale += (targetScale - currentTimeScale) * 0.08;
+          
+          // Gradually decay targetTimeScale back to default direction scale
+          if (!isHovered) {
+            targetTimeScale += ((targetTimeScale > 0 ? 1 : -1) - targetTimeScale) * 0.08;
+          }
           
           // Only animate if the track section is visible in the viewport
           if (rect.bottom > 0 && rect.top < viewHeight) {
-            if (!isHovered) { // Moves continuously, pauses ONLY when hovered
-              currentX += speed;
-              
-              // Loop point is exactly half of the total scrollable width
-              const halfWidth = track.scrollWidth / 2;
-              
-              if (currentX <= -halfWidth) {
-                currentX += halfWidth;
-              } else if (currentX >= 0) {
-                currentX -= halfWidth;
-              }
-              
-              track.style.transform = `translateX(${currentX}px)`;
+            // Apply speed translation
+            currentX += baseSpeed * currentTimeScale;
+            
+            // Loop point is exactly half of the total scrollable width
+            const halfWidth = track.scrollWidth / 2;
+            
+            if (currentX <= -halfWidth) {
+              currentX += halfWidth;
+            } else if (currentX >= 0) {
+              currentX -= halfWidth;
             }
+            
+            track.style.transform = `translateX(${currentX}px)`;
           }
           
           requestAnimationFrame(animate);
