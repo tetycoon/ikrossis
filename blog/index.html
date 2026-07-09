@@ -80,7 +80,6 @@
           entries.forEach(entry => {
             if (entry.isIntersecting) {
               const el = entry.target;
-              // Get index among siblings to stagger
               const siblings = Array.from(el.parentNode.children).filter(child => animatedElements.includes(child) || child.dataset.animated);
               const index = siblings.indexOf(el);
               const delay = index >= 0 ? index * 0.15 : 0;
@@ -106,6 +105,44 @@
         }
         scrollObserver.observe(el);
       });
+    }
+
+    // 4. Horizontal Scroll Parallax for testimonial tracks
+    function initScrollParallax() {
+      const tracks = document.querySelectorAll('.flex.w-fit.gap-6.px-6');
+      if (tracks.length === 0) return;
+      
+      function updateParallax() {
+        const viewHeight = window.innerHeight;
+        tracks.forEach(track => {
+          const parent = track.parentElement;
+          if (!parent) return;
+          const rect = parent.getBoundingClientRect();
+          if (rect.bottom > 0 && rect.top < viewHeight) {
+            const parentWidth = parent.clientWidth;
+            const scrollWidth = track.scrollWidth;
+            const overflow = scrollWidth - parentWidth;
+            
+            if (overflow > 0) {
+              const start = rect.top - viewHeight;
+              const end = rect.bottom;
+              const total = end - start;
+              const progress = Math.max(0, Math.min(1, (0 - start) / total));
+              
+              // Move right-to-left as we scroll down
+              const tx = -progress * overflow;
+              track.style.transform = `translateX(${tx}px)`;
+              track.style.transition = 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)';
+            }
+          }
+        });
+      }
+      
+      window.addEventListener('scroll', () => {
+        requestAnimationFrame(updateParallax);
+      }, { passive: true });
+      updateParallax();
+      window.addEventListener('resize', updateParallax);
     }
 
     const observer = new MutationObserver((mutations) => {
@@ -143,6 +180,7 @@
       fixStats();
       setInterval(fixStats, 300);
       initAnimations();
+      initScrollParallax();
     });
   })();
 </script>

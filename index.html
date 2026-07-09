@@ -21,7 +21,7 @@
       return originalFetch.apply(this, arguments);
     };
 
-    // 2. Dynamic Image Path Optimizer (for static exports)
+    // 2. Dynamic Image Path Optimizer & Stats Fixer (for static exports)
     function fixImage(img) {
       const src = img.getAttribute('src');
       if (src && src.includes('_next/image')) {
@@ -35,82 +35,119 @@
       if (img.hasAttribute('srcSet')) img.removeAttribute('srcSet');
     }
 
-    // 3. Stats Count-Up Animator & Protection
-    function getStatConfig(labelText) {
-      if (labelText.includes('years')) return { target: 12, suffix: '+' };
-      if (labelText.includes('corporates')) return { target: 40, suffix: '+' };
-      if (labelText.includes('lives')) return { target: 25, suffix: 'K+' };
-      if (labelText.includes('programs')) return { target: 500, suffix: '+' };
-      return null;
-    }
-
     function fixStats() {
-      const containers = document.querySelectorAll('.text-center');
-      containers.forEach(container => {
-        const labelEl = container.querySelector('.font-semibold');
-        const valueSpan = container.querySelector('span');
-        if (!labelEl || !valueSpan) return;
-
-        const labelText = labelEl.textContent.trim().toLowerCase();
-        const config = getStatConfig(labelText);
-        if (!config) return;
-
-        const finalValue = `${config.target}${config.suffix}`;
-        container.dataset.finalValue = finalValue;
-
-        // Protect value from React hydration overrides
-        if (container.dataset.finished === 'true') {
-          if (valueSpan.textContent.trim() !== finalValue) {
-            valueSpan.innerHTML = finalValue;
-          }
-        } else if (!container.dataset.animating) {
-          const zeroValue = `0${config.suffix}`;
-          if (valueSpan.textContent.trim() !== zeroValue) {
-            valueSpan.innerHTML = zeroValue;
+      const spans = document.querySelectorAll('span');
+      for (let i = 0; i < spans.length; i++) {
+        const span = spans[i];
+        const text = span.textContent.trim();
+        if (text === '0+' || text === '0K+' || text === '0' || text.startsWith('0')) {
+          const parent = span.closest('.text-center');
+          if (parent) {
+            const labelEl = parent.querySelector('.font-semibold');
+            if (labelEl) {
+              const label = labelEl.textContent.trim().toLowerCase();
+              if (label.includes('years')) {
+                span.innerHTML = '12+';
+              } else if (label.includes('corporates')) {
+                span.innerHTML = '40+';
+              } else if (label.includes('lives')) {
+                span.innerHTML = '25K+';
+              } else if (label.includes('programs')) {
+                span.innerHTML = '500+';
+              }
+            }
           }
         }
+      }
+    }
+
+    // 3. Viewport Scroll Animator for hidden sections
+    let scrollObserver = null;
+    function initAnimations() {
+      const animatedElements = [];
+      document.querySelectorAll('.opacity-0:not([data-animated])').forEach(el => {
+        animatedElements.push(el);
+      });
+      document.querySelectorAll('[style*="opacity:0"]:not([data-animated]), [style*="opacity: 0"]:not([data-animated])').forEach(el => {
+        if (el.closest('.hero-line h1')) return;
+        if (!animatedElements.includes(el)) animatedElements.push(el);
+      });
+
+      if (animatedElements.length === 0) return;
+
+      if (!scrollObserver) {
+        scrollObserver = new IntersectionObserver((entries, observer) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const el = entry.target;
+              const siblings = Array.from(el.parentNode.children).filter(child => animatedElements.includes(child) || child.dataset.animated);
+              const index = siblings.indexOf(el);
+              const delay = index >= 0 ? index * 0.15 : 0;
+
+              el.style.setProperty('transition', 'opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)', 'important');
+              el.style.setProperty('transition-delay', `${delay}s`, 'important');
+              
+              el.classList.remove('opacity-0');
+              el.style.setProperty('opacity', '1', 'important');
+              el.style.setProperty('transform', 'none', 'important');
+              el.dataset.animated = 'true';
+
+              observer.unobserve(el);
+            }
+          });
+        }, { threshold: 0.05 });
+      }
+
+      animatedElements.forEach(el => {
+        const inlineStyle = el.getAttribute('style') || '';
+        if (!inlineStyle.includes('transform')) {
+          el.style.transform = 'translateY(25px)';
+        }
+        scrollObserver.observe(el);
       });
     }
 
-    function animateStatContainer(container) {
-      const labelEl = container.querySelector('.font-semibold');
-      const valueSpan = container.querySelector('span');
-      if (!labelEl || !valueSpan || container.dataset.animating) return;
-
-      const labelText = labelEl.textContent.trim().toLowerCase();
-      const config = getStatConfig(labelText);
-      if (!config) return;
-
-      container.dataset.animating = 'true';
+    // 4. Horizontal Scroll Parallax for testimonial tracks
+    function initScrollParallax() {
+      const tracks = document.querySelectorAll('.flex.w-fit.gap-6.px-6');
+      if (tracks.length === 0) return;
       
-      const duration = 2000; // 2 seconds
-      const startTime = performance.now();
-      const target = config.target;
-      const suffix = config.suffix;
-
-      function updateCount(currentTime) {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        
-        // Easing out cubic
-        const easeProgress = 1 - Math.pow(1 - progress, 3);
-        const currentValue = Math.floor(easeProgress * target);
-
-        valueSpan.innerHTML = `${currentValue}${suffix}`;
-
-        if (progress < 1) {
-          requestAnimationFrame(updateCount);
-        } else {
-          valueSpan.innerHTML = `${target}${suffix}`;
-          container.dataset.finished = 'true';
-        }
+      function updateParallax() {
+        const viewHeight = window.innerHeight;
+        tracks.forEach(track => {
+          const parent = track.parentElement;
+          if (!parent) return;
+          const rect = parent.getBoundingClientRect();
+          if (rect.bottom > 0 && rect.top < viewHeight) {
+            const parentWidth = parent.clientWidth;
+            const scrollWidth = track.scrollWidth;
+            const overflow = scrollWidth - parentWidth;
+            
+            if (overflow > 0) {
+              const start = rect.top - viewHeight;
+              const end = rect.bottom;
+              const total = end - start;
+              const progress = Math.max(0, Math.min(1, (0 - start) / total));
+              
+              // Move right-to-left as we scroll down
+              const tx = -progress * overflow;
+              track.style.transform = `translateX(${tx}px)`;
+              track.style.transition = 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)';
+            }
+          }
+        });
       }
-
-      requestAnimationFrame(updateCount);
+      
+      window.addEventListener('scroll', () => {
+        requestAnimationFrame(updateParallax);
+      }, { passive: true });
+      updateParallax();
+      window.addEventListener('resize', updateParallax);
     }
 
     const observer = new MutationObserver((mutations) => {
       fixStats();
+      initAnimations();
       for (const mutation of mutations) {
         if (mutation.type === 'childList') {
           for (const node of mutation.addedNodes) {
@@ -138,126 +175,12 @@
       attributeFilter: ['src', 'srcset', 'srcSet']
     });
 
-    // 4. Initialization, Viewport Animations, & Rotator
+    // Run initial checks
     document.addEventListener('DOMContentLoaded', () => {
-      // Start stats tracking
       fixStats();
-      setInterval(fixStats, 200);
-
-      // Intersection Observer for Stats Count-up
-      const statsObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            animateStatContainer(entry.target);
-            observer.unobserve(entry.target);
-          }
-        });
-      }, { threshold: 0.1 });
-
-      const containers = document.querySelectorAll('.text-center');
-      containers.forEach(container => {
-        const labelEl = container.querySelector('.font-semibold');
-        if (labelEl && getStatConfig(labelEl.textContent.trim().toLowerCase())) {
-          statsObserver.observe(container);
-        }
-      });
-
-      // Viewport Scroll Animator for hidden sections
-      const animatedElements = [];
-      document.querySelectorAll('.opacity-0').forEach(el => {
-        animatedElements.push(el);
-      });
-      document.querySelectorAll('[style*="opacity:0"], [style*="opacity: 0"]').forEach(el => {
-        if (el.closest('.hero-line h1')) return;
-        if (!animatedElements.includes(el)) animatedElements.push(el);
-      });
-
-      const scrollObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            const el = entry.target;
-            const siblings = Array.from(el.parentNode.children).filter(child => animatedElements.includes(child));
-            const index = siblings.indexOf(el);
-            const delay = index >= 0 ? index * 0.15 : 0;
-
-            el.style.setProperty('transition', 'opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)', 'important');
-            el.style.setProperty('transition-delay', `${delay}s`, 'important');
-            
-            el.classList.remove('opacity-0');
-            el.style.setProperty('opacity', '1', 'important');
-            el.style.setProperty('transform', 'none', 'important');
-
-            observer.unobserve(el);
-          }
-        });
-      }, { threshold: 0.05 });
-
-      animatedElements.forEach(el => {
-        const inlineStyle = el.getAttribute('style') || '';
-        if (!inlineStyle.includes('transform')) {
-          el.style.transform = 'translateY(25px)';
-        }
-        scrollObserver.observe(el);
-      });
-
-      // Text Rotator (Renew -> Reshape -> Rebuild)
-      const h1 = document.querySelector('.hero-line h1');
-      if (!h1) return;
-
-      const words = ["Renew", "Reshape", "Rebuild"];
-      let wordIndex = 0;
-
-      function createLetterSpans(word) {
-        h1.innerHTML = '';
-        const chars = word.split('');
-        chars.forEach((char, index) => {
-          const span = document.createElement('span');
-          span.className = 'inline-block whitespace-pre';
-          span.style.backfaceVisibility = 'hidden';
-          span.style.transformOrigin = '50% 100%';
-          span.style.transformStyle = 'preserve-3d';
-          span.style.transition = 'all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)';
-          span.style.transitionDelay = `${index * 0.05}s`;
-          
-          // Initial state: rotated out
-          span.style.opacity = '0';
-          span.style.transform = 'translateZ(-20px) rotateX(90deg)';
-          span.textContent = char;
-          h1.appendChild(span);
-        });
-      }
-
-      function animateIn() {
-        const spans = h1.querySelectorAll('span');
-        spans.forEach((span) => {
-          span.style.opacity = '1';
-          span.style.transform = 'none';
-        });
-      }
-
-      function animateOut() {
-        const spans = h1.querySelectorAll('span');
-        spans.forEach((span) => {
-          span.style.opacity = '0';
-          span.style.transform = 'translateZ(-20px) rotateX(90deg)';
-        });
-      }
-
-      function rotateWord() {
-        animateOut();
-        setTimeout(() => {
-          wordIndex = (wordIndex + 1) % words.length;
-          createLetterSpans(words[wordIndex]);
-          h1.offsetHeight; // trigger reflow
-          animateIn();
-        }, 800);
-      }
-
-      createLetterSpans(words[wordIndex]);
-      h1.offsetHeight; // trigger reflow
-      animateIn();
-
-      setInterval(rotateWord, 3500);
+      setInterval(fixStats, 300);
+      initAnimations();
+      initScrollParallax();
     });
   })();
 </script>
