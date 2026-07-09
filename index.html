@@ -107,7 +107,7 @@
       });
     }
 
-    // 4. Infinite Auto-Scrolling Testimonial Marquee with Scroll-Direction Detection and Hover Pause
+    // 5. Scroll-Direction-based Testimonial Marquee (Hover-to-Play, Mouseout-to-Stop)
     function initScrollParallax() {
       const tracks = document.querySelectorAll('.flex.w-fit.gap-6.px-6');
       if (tracks.length === 0) return;
@@ -129,9 +129,9 @@
         let currentX = 0;
         let speed = -0.8; // Initial speed: right-to-left
         let lastScrollY = window.scrollY;
-        let isHovered = false;
+        let isHovered = false; // Stopped by default
         
-        // Detect hover state
+        // Only play when hovered, stop when mouse points out
         track.addEventListener('mouseenter', () => {
           isHovered = true;
         });
@@ -154,9 +154,9 @@
           const viewHeight = window.innerHeight;
           const rect = parent.getBoundingClientRect();
           
-          // Only animate if the track section is visible in the viewport
+          // Only animate if the track section is visible in the viewport AND hovered
           if (rect.bottom > 0 && rect.top < viewHeight) {
-            if (!isHovered) {
+            if (isHovered) { // Only moves when mouse is on it
               currentX += speed;
               
               // Loop point is exactly half of the total scrollable width
