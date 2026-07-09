@@ -107,42 +107,66 @@
       });
     }
 
-    // 4. Horizontal Scroll Parallax for testimonial tracks
+    // 4. Infinite Auto-Scrolling Testimonial Marquee with Scroll-Direction Detection
     function initScrollParallax() {
       const tracks = document.querySelectorAll('.flex.w-fit.gap-6.px-6');
       if (tracks.length === 0) return;
       
-      function updateParallax() {
-        const viewHeight = window.innerHeight;
-        tracks.forEach(track => {
-          const parent = track.parentElement;
-          if (!parent) return;
-          const rect = parent.getBoundingClientRect();
-          if (rect.bottom > 0 && rect.top < viewHeight) {
-            const parentWidth = parent.clientWidth;
-            const scrollWidth = track.scrollWidth;
-            const overflow = scrollWidth - parentWidth;
-            
-            if (overflow > 0) {
-              const start = rect.top - viewHeight;
-              const end = rect.bottom;
-              const total = end - start;
-              const progress = Math.max(0, Math.min(1, (0 - start) / total));
-              
-              // Move right-to-left as we scroll down
-              const tx = -progress * overflow;
-              track.style.transform = `translateX(${tx}px)`;
-              track.style.transition = 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)';
-            }
+      tracks.forEach(track => {
+        const parent = track.parentElement;
+        if (!parent) return;
+        
+        // Clone children once to create a seamless infinite loop
+        if (!track.dataset.cloned) {
+          const children = Array.from(track.children);
+          children.forEach(child => {
+            const clone = child.cloneNode(true);
+            track.appendChild(clone);
+          });
+          track.dataset.cloned = 'true';
+        }
+        
+        let currentX = 0;
+        let speed = -0.8; // Initial speed: right-to-left
+        let lastScrollY = window.scrollY;
+        
+        // Detect scroll direction and change speed direction
+        window.addEventListener('scroll', () => {
+          const currentScrollY = window.scrollY;
+          if (currentScrollY > lastScrollY) {
+            speed = -1.2; // Scrolling down: move right-to-left
+          } else if (currentScrollY < lastScrollY) {
+            speed = 1.2;  // Scrolling up: move left-to-right
           }
-        });
-      }
-      
-      window.addEventListener('scroll', () => {
-        requestAnimationFrame(updateParallax);
-      }, { passive: true });
-      updateParallax();
-      window.addEventListener('resize', updateParallax);
+          lastScrollY = currentScrollY;
+        }, { passive: true });
+        
+        function animate() {
+          const viewHeight = window.innerHeight;
+          const rect = parent.getBoundingClientRect();
+          
+          // Only animate if the track section is visible in the viewport
+          if (rect.bottom > 0 && rect.top < viewHeight) {
+            currentX += speed;
+            
+            // Loop point is exactly half of the total scrollable width
+            const halfWidth = track.scrollWidth / 2;
+            
+            if (currentX <= -halfWidth) {
+              currentX += halfWidth;
+            } else if (currentX >= 0) {
+              currentX -= halfWidth;
+            }
+            
+            track.style.transform = `translateX(${currentX}px)`;
+          }
+          
+          requestAnimationFrame(animate);
+        }
+        
+        // Start animation loop
+        animate();
+      });
     }
 
     const observer = new MutationObserver((mutations) => {
