@@ -107,7 +107,7 @@
       });
     }
 
-    // 4. Infinite Auto-Scrolling Testimonial Marquee with Scroll-Direction Detection
+    // 4. Infinite Auto-Scrolling Testimonial Marquee with Scroll-Direction Detection and Hover Pause
     function initScrollParallax() {
       const tracks = document.querySelectorAll('.flex.w-fit.gap-6.px-6');
       if (tracks.length === 0) return;
@@ -129,6 +129,15 @@
         let currentX = 0;
         let speed = -0.8; // Initial speed: right-to-left
         let lastScrollY = window.scrollY;
+        let isHovered = false;
+        
+        // Detect hover state
+        track.addEventListener('mouseenter', () => {
+          isHovered = true;
+        });
+        track.addEventListener('mouseleave', () => {
+          isHovered = false;
+        });
         
         // Detect scroll direction and change speed direction
         window.addEventListener('scroll', () => {
@@ -147,18 +156,20 @@
           
           // Only animate if the track section is visible in the viewport
           if (rect.bottom > 0 && rect.top < viewHeight) {
-            currentX += speed;
-            
-            // Loop point is exactly half of the total scrollable width
-            const halfWidth = track.scrollWidth / 2;
-            
-            if (currentX <= -halfWidth) {
-              currentX += halfWidth;
-            } else if (currentX >= 0) {
-              currentX -= halfWidth;
+            if (!isHovered) {
+              currentX += speed;
+              
+              // Loop point is exactly half of the total scrollable width
+              const halfWidth = track.scrollWidth / 2;
+              
+              if (currentX <= -halfWidth) {
+                currentX += halfWidth;
+              } else if (currentX >= 0) {
+                currentX -= halfWidth;
+              }
+              
+              track.style.transform = `translateX(${currentX}px)`;
             }
-            
-            track.style.transform = `translateX(${currentX}px)`;
           }
           
           requestAnimationFrame(animate);
