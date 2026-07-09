@@ -107,7 +107,7 @@
       });
     }
 
-    // 5. Scroll-Velocity-based Testimonial Marquee (Hover-to-Play, Physics-Decay, Mouseout-to-Stop)
+    // 5. Scroll-Speed Responsive Testimonial Marquee (Hover-to-Play, Continuous Movement, Mouseout-to-Stop)
     function initScrollParallax() {
       const tracks = document.querySelectorAll('.flex.w-fit.gap-6.px-6');
       if (tracks.length === 0) return;
@@ -127,12 +127,13 @@
         }
         
         let currentX = 0;
-        let scrollVelocity = 0;
+        const baseSpeed = -0.5; // Constant gentle speed (right-to-left)
+        let extraSpeed = 0;     // Extra speed added by scrolling
         let lastScrollY = window.scrollY;
         let lastScrollTime = Date.now();
-        let isHovered = false; // Stopped by default
+        let isHovered = false; // Stopped by default when mouse is not over it
         
-        // Only play when hovered, stop when mouse points out
+        // Play only when hovered
         track.addEventListener('mouseenter', () => {
           isHovered = true;
         });
@@ -140,7 +141,7 @@
           isHovered = false;
         });
         
-        // Measure scroll velocity (speed and direction)
+        // Measure scroll velocity and accelerate marquee speed/direction
         window.addEventListener('scroll', () => {
           const currentScrollY = window.scrollY;
           const currentTime = Date.now();
@@ -148,10 +149,8 @@
           const dy = currentScrollY - lastScrollY;
           
           if (dt > 0) {
-            // Speed is proportional to dy / dt
-            // Moving down (dy > 0) translates right-to-left (negative scrollVelocity)
-            // Moving up (dy < 0) translates left-to-right (positive scrollVelocity)
-            scrollVelocity = -dy / dt * 15;
+            // Speed boost proportional to scroll rate
+            extraSpeed = -dy / dt * 12;
           }
           
           lastScrollY = currentScrollY;
@@ -162,16 +161,19 @@
           const viewHeight = window.innerHeight;
           const rect = parent.getBoundingClientRect();
           
-          // Apply friction decay to velocity
-          scrollVelocity *= 0.92;
-          if (Math.abs(scrollVelocity) < 0.05) {
-            scrollVelocity = 0;
+          // Decay extra speed boost back to 0 (friction)
+          extraSpeed *= 0.92;
+          if (Math.abs(extraSpeed) < 0.05) {
+            extraSpeed = 0;
           }
+          
+          // Total current frame speed
+          const speed = baseSpeed + extraSpeed;
           
           // Only animate if the track section is visible in the viewport AND hovered
           if (rect.bottom > 0 && rect.top < viewHeight) {
-            if (isHovered && scrollVelocity !== 0) {
-              currentX += scrollVelocity;
+            if (isHovered) {
+              currentX += speed;
               
               // Loop point is exactly half of the total scrollable width
               const halfWidth = track.scrollWidth / 2;
