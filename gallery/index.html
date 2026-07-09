@@ -23,12 +23,19 @@
 
     // 2. Dynamic Image Path Optimizer & Stats Fixer (for static exports)
     function fixImage(img) {
-      const src = img.getAttribute('src');
-      if (src && src.includes('_next/image')) {
-        const match = src.match(/[?&]url=([^&]+)/);
-        if (match && match[1]) {
-          const decoded = decodeURIComponent(match[1]);
-          img.setAttribute('src', decoded);
+      let src = img.getAttribute('src');
+      if (src) {
+        if (src.includes('_next/image')) {
+          const match = src.match(/[?&]url=([^&]+)/);
+          if (match && match[1]) {
+            src = decodeURIComponent(match[1]);
+            img.setAttribute('src', src);
+          }
+        }
+        // Remove query parameters for local static files (to resolve file:// and simple web server loading issues)
+        if (src.includes('?') && (src.includes('_next/') || src.includes('.png') || src.includes('.jpg') || src.includes('.jpeg') || src.includes('.svg') || src.includes('.webp'))) {
+          src = src.split('?')[0];
+          img.setAttribute('src', src);
         }
       }
       if (img.hasAttribute('srcset')) img.removeAttribute('srcset');
@@ -66,10 +73,12 @@
     function initAnimations() {
       const animatedElements = [];
       document.querySelectorAll('.opacity-0:not([data-animated])').forEach(el => {
+        if (el.closest('section')?.querySelector('.hero-line')) return; // Let hero animator handle hero section
         animatedElements.push(el);
       });
       document.querySelectorAll('[style*="opacity:0"]:not([data-animated]), [style*="opacity: 0"]:not([data-animated])').forEach(el => {
-        if (el.closest('.hero-line h1')) return;
+        if (el.closest('.hero-line')) return;
+        if (el.closest('section')?.querySelector('.hero-line')) return; // Let hero animator handle hero section
         if (!animatedElements.includes(el)) animatedElements.push(el);
       });
 
@@ -127,7 +136,7 @@
         }
         
         let currentX = 0;
-        let baseSpeed = -0.5;      // Base speed matching GSAP's duration: 100
+        let baseSpeed = -0.8;      // Base speed matching GSAP's duration: 100
         let targetTimeScale = 1;   // Equivalent to GSAP's timeScale
         let currentTimeScale = 1;  // Smoothly interpolated timeScale
         let lastScrollY = window.scrollY;
@@ -152,7 +161,6 @@
           if (dt > 0) {
             const velocity = dy / dt * 1000; // Pixels per second (approx)
             const direction = dy > 0 ? 1 : -1;
-            // GSAP formula: let n = 1 + Math.abs(r)/300; timeScale: 1===i?n:-n
             const factor = 1 + Math.abs(velocity) / 300;
             targetTimeScale = direction === 1 ? factor : -factor;
           }
@@ -168,20 +176,16 @@
           // Smoothly decay extra scroll velocity timeScale back to default (1 or -1)
           const targetScale = isHovered ? 0.1 : (targetTimeScale > 0 ? 1 : -1);
           
-          // Interpolate current scale toward target (simulating GSAP duration: 0.5 overwrite)
           currentTimeScale += (targetScale - currentTimeScale) * 0.08;
           
-          // Gradually decay targetTimeScale back to default direction scale
           if (!isHovered) {
             targetTimeScale += ((targetTimeScale > 0 ? 1 : -1) - targetTimeScale) * 0.08;
           }
           
           // Only animate if the track section is visible in the viewport
           if (rect.bottom > 0 && rect.top < viewHeight) {
-            // Apply speed translation
             currentX += baseSpeed * currentTimeScale;
             
-            // Loop point is exactly half of the total scrollable width
             const halfWidth = track.scrollWidth / 2;
             
             if (currentX <= -halfWidth) {
@@ -196,9 +200,151 @@
           requestAnimationFrame(animate);
         }
         
-        // Start animation loop
         animate();
       });
+    }
+
+    // 5. Original Homepage Hero Section Rotating Word & Entry Animations replica
+    function initHeroAnimation() {
+      const firstLineContainer = document.querySelector('.hero-line[style*="perspective"]');
+      if (!firstLineContainer) return;
+      
+      const words = ["Renew", "Reshape", "Rebuild"];
+      let wordIndex = 0;
+      
+      // Find other elements to animate
+      const heroSubtitle = document.querySelector('section .flex.items-center.gap-3.mb-10');
+      const heroLines = document.querySelectorAll('.hero-line:not([style*="perspective"])');
+      const heroFades = document.querySelectorAll('.hero-fade');
+      const heroOwnerImg = document.querySelector('.hero-owner-img');
+      
+      // 1. Hide everything initially to mimic GSAP set
+      if (heroSubtitle) {
+        heroSubtitle.style.opacity = '0';
+        heroSubtitle.style.transform = 'translateX(-16px)';
+        heroSubtitle.style.transition = 'none';
+      }
+      heroLines.forEach(el => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(110%)';
+        el.style.transition = 'none';
+      });
+      heroFades.forEach(el => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(20px)';
+        el.style.transition = 'none';
+      });
+      if (heroOwnerImg) {
+        heroOwnerImg.style.opacity = '0';
+        heroOwnerImg.style.transform = 'translateX(60px)';
+        heroOwnerImg.style.transition = 'none';
+      }
+      
+      // 2. Play animations staggered on load
+      setTimeout(() => {
+        // Subtitle
+        if (heroSubtitle) {
+          heroSubtitle.style.transition = 'transform 1s cubic-bezier(0.16, 1, 0.3, 1), opacity 1s cubic-bezier(0.16, 1, 0.3, 1)';
+          heroSubtitle.style.opacity = '1';
+          heroSubtitle.style.transform = 'translateX(0px)';
+        }
+        
+        // Owner Img
+        if (heroOwnerImg) {
+          heroOwnerImg.style.transition = 'transform 1.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.6s cubic-bezier(0.16, 1, 0.3, 1)';
+          heroOwnerImg.style.opacity = '1';
+          heroOwnerImg.style.transform = 'translateX(0px)';
+        }
+        
+        // First rotating word
+        animateWord(words[0]);
+        
+        // Lines
+        heroLines.forEach((el, idx) => {
+          setTimeout(() => {
+            el.style.transition = 'transform 1s cubic-bezier(0.16, 1, 0.3, 1), opacity 1s cubic-bezier(0.16, 1, 0.3, 1)';
+            el.style.opacity = '1';
+            el.style.transform = 'translateY(0%)';
+          }, 400 + idx * 180);
+        });
+        
+        // Fades
+        heroFades.forEach((el, idx) => {
+          setTimeout(() => {
+            el.style.transition = 'transform 0.9s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1)';
+            el.style.opacity = '1';
+            el.style.transform = 'translateY(0px)';
+          }, 1000 + idx * 150);
+        });
+        
+        // Word rotation interval
+        setInterval(() => {
+          wordIndex = (wordIndex + 1) % words.length;
+          rotateToWord(words[wordIndex]);
+        }, 4000);
+        
+      }, 100);
+      
+      function createWordSpans(word, isEntering) {
+        return word.split('').map(char => {
+          const span = document.createElement('span');
+          span.className = 'inline-block whitespace-pre';
+          span.textContent = char;
+          span.style.backfaceVisibility = 'hidden';
+          span.style.transformOrigin = '50% 100%';
+          span.style.transformStyle = 'preserve-3d';
+          if (isEntering) {
+            span.style.opacity = '0';
+            span.style.transform = 'translateZ(-20px) rotateX(90deg)';
+          } else {
+            span.style.opacity = '1';
+            span.style.transform = 'translateZ(0px) rotateX(0deg)';
+          }
+          return span;
+        });
+      }
+      
+      function animateWord(word) {
+        firstLineContainer.innerHTML = '';
+        const h1 = document.createElement('h1');
+        h1.className = 'absolute left-0 top-0 text-[clamp(3rem,6vw,5.5rem)] font-heading font-light text-[#C9A96E] leading-[1.0] tracking-tight flex';
+        h1.style.transformStyle = 'preserve-3d';
+        
+        const spans = createWordSpans(word, true);
+        spans.forEach(span => h1.appendChild(span));
+        firstLineContainer.appendChild(h1);
+        
+        spans.forEach((span, idx) => {
+          setTimeout(() => {
+            span.style.transition = 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.6s ease-out';
+            span.style.transform = 'translateZ(0px) rotateX(0deg)';
+            span.style.opacity = '1';
+          }, idx * 50);
+        });
+      }
+      
+      function rotateToWord(newWord) {
+        const currentH1 = firstLineContainer.querySelector('h1');
+        if (!currentH1) {
+          animateWord(newWord);
+          return;
+        }
+        
+        const currentSpans = Array.from(currentH1.children);
+        const len = currentSpans.length;
+        currentSpans.forEach((span, idx) => {
+          const revIdx = len - 1 - idx;
+          setTimeout(() => {
+            span.style.transition = 'transform 0.4s cubic-bezier(0.36, 0, 0.66, -0.56), opacity 0.4s ease-in';
+            span.style.transform = 'translateZ(-20px) rotateX(-90deg)';
+            span.style.opacity = '0';
+          }, revIdx * 30);
+        });
+        
+        setTimeout(() => {
+          animateWord(newWord);
+        }, len * 30 + 350);
+      }
     }
 
     const observer = new MutationObserver((mutations) => {
@@ -237,6 +383,7 @@
       setInterval(fixStats, 300);
       initAnimations();
       initScrollParallax();
+      initHeroAnimation();
     });
   })();
 </script>
