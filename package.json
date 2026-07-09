@@ -1,0 +1,10 @@
+{
+  "name": "ikrossis-pages",
+  "version": "1.0.0",
+  "description": "Static export for rockbridge.in",
+  "scripts": {
+    "deploy": "git push origin main",
+    "deploy-live": "git push origin main",
+    "deploy:live": "git push origin main"
+  }
+}
